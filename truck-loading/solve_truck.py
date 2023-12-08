@@ -45,6 +45,28 @@ boxes = [
 ]
 
 
+class VarArraySolutionPrinterWithLimit(cp_model.CpSolverSolutionCallback):
+    """Print intermediate solutions."""
+
+    def __init__(self, variables, limit):
+        cp_model.CpSolverSolutionCallback.__init__(self)
+        self.__variables = variables
+        self.__solution_count = 0
+        self.__solution_limit = limit
+
+    def on_solution_callback(self):
+        self.__solution_count += 1
+        for v in self.__variables:
+            print(f"{v}={self.Value(v)}", end=" ")
+        print()
+        if self.__solution_count >= self.__solution_limit:
+            print(f"Stop search after {self.__solution_limit} solutions")
+            self.StopSearch()
+
+    def solution_count(self):
+        return self.__solution_count
+
+
 class TruckLoading:
     def __init__(self):
         pass
@@ -127,6 +149,9 @@ class TruckLoading:
         # Define the CP-sat model
         model = cp_model.CpModel()
 
+        # Create a bool variable c_i indicating if item i is considered
+        c_vars = [model.NewBoolVar(f"c_{i}") for i in range(len(boxes))]
+
         # We have to create the variable for the bottom left corner of the
         # boxes.
         # We directly limit their range, such that the boxes are inside the
@@ -139,6 +164,12 @@ class TruckLoading:
             model.NewIntVar(0, container[1] - box["dim"][1], name=f"y1_{i}")
             for i, box in enumerate(boxes)
         ]
+
+        for i in range(len(boxes)):
+            model.Add(x_vars[i] == 0).OnlyEnforceIf(c_vars[i].Not())
+            model.Add(x_vars[i] >= 0).OnlyEnforceIf(c_vars[i])
+            model.Add(y_vars[i] == 0).OnlyEnforceIf(c_vars[i].Not())
+            model.Add(y_vars[i] >= 0).OnlyEnforceIf(c_vars[i])
         # Interval variables are actually more like constraint containers, that
         # are then passed to the no overlap constraint.
         # Note that we could also make size and end variables, but we don't need
@@ -146,8 +177,8 @@ class TruckLoading:
         x_interval_vars = [
             model.NewIntervalVar(
                 start=x_vars[i],
-                size=box["dim"][0],
-                end=x_vars[i] + box["dim"][0],
+                size=(box["dim"][0]) * c_vars[i],
+                end=(x_vars[i] + box["dim"][0]) * c_vars[i],
                 name=f"x_interval_{i}",
             )
             for i, box in enumerate(boxes)
@@ -155,8 +186,8 @@ class TruckLoading:
         y_interval_vars = [
             model.NewIntervalVar(
                 start=y_vars[i],
-                size=box["dim"][1],
-                end=y_vars[i] + box["dim"][1],
+                size=(box["dim"][1]) * c_vars[i],
+                end=(y_vars[i] + box["dim"][1]) * c_vars[i],
                 name=f"y_interval_{i}",
             )
             for i, box in enumerate(boxes)
@@ -165,13 +196,20 @@ class TruckLoading:
         model.AddNoOverlap2D(x_interval_vars, y_interval_vars)
 
         # Add objective function - it pushes all items towards (x, y) = (0, 0)
-        # model.Minimize(sum([(x_vars[i] + y_vars[i]) for i in range(len(x_vars))]))
+        model.Maximize(sum([c_vars[i] for i in range(len(x_vars))]))
 
         # Solve!
         solver = cp_model.CpSolver()
+        solver.parameters.max_time_in_seconds = 300.0
         solver.parameters.log_search_progress = True
         solver.log_callback = print
-        status = solver.Solve(model)
+        solution_printer = VarArraySolutionPrinterWithLimit(
+            [c_vars, x_vars, y_vars], 5
+        )
+        # Enumerate all solutions.
+        solver.parameters.enumerate_all_solutions = True
+        # Solve.
+        status = solver.Solve(model, solution_printer)
         assert status == cp_model.OPTIMAL
 
         if plot:
