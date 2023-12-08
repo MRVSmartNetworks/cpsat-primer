@@ -175,23 +175,26 @@ class TruckLoading:
         # Note that we could also make size and end variables, but we don't need
         # them here
         x_interval_vars = [
-            model.NewIntervalVar(
+            model.NewOptionalIntervalVar(
                 start=x_vars[i],
-                size=(box["dim"][0]) * c_vars[i],
-                end=(x_vars[i] + box["dim"][0]) * c_vars[i],
+                size=box["dim"][0],
+                end=x_vars[i] + box["dim"][0],
+                is_present=c_vars[i],
                 name=f"x_interval_{i}",
             )
             for i, box in enumerate(boxes)
         ]
         y_interval_vars = [
-            model.NewIntervalVar(
+            model.NewOptionalIntervalVar(
                 start=y_vars[i],
-                size=(box["dim"][1]) * c_vars[i],
-                end=(y_vars[i] + box["dim"][1]) * c_vars[i],
+                size=box["dim"][1],
+                end=y_vars[i] + box["dim"][1],
+                is_present=c_vars[i],
                 name=f"y_interval_{i}",
             )
             for i, box in enumerate(boxes)
         ]
+
         # Enforce that no two rectangles overlap
         model.AddNoOverlap2D(x_interval_vars, y_interval_vars)
 
@@ -203,13 +206,10 @@ class TruckLoading:
         solver.parameters.max_time_in_seconds = 300.0
         solver.parameters.log_search_progress = True
         solver.log_callback = print
-        solution_printer = VarArraySolutionPrinterWithLimit(
-            [c_vars, x_vars, y_vars], 5
-        )
         # Enumerate all solutions.
-        solver.parameters.enumerate_all_solutions = True
+        # solver.parameters.enumerate_all_solutions = True
         # Solve.
-        status = solver.Solve(model, solution_printer)
+        status = solver.Solve(model)
         assert status == cp_model.OPTIMAL
 
         if plot:
@@ -218,16 +218,17 @@ class TruckLoading:
             ax.set_xlim(0, container[0])
             ax.set_ylim(0, container[1])
             for i, box in enumerate(boxes):
-                ax.add_patch(
-                    patches.Rectangle(
-                        (solver.Value(x_vars[i]), solver.Value(y_vars[i])),
-                        box["dim"][0],
-                        box["dim"][1],
-                        facecolor="blue",
-                        alpha=0.2,
-                        edgecolor="b",
+                if solver.Value(c_vars[i]) > 0:
+                    ax.add_patch(
+                        patches.Rectangle(
+                            (solver.Value(x_vars[i]), solver.Value(y_vars[i])),
+                            box["dim"][0],
+                            box["dim"][1],
+                            facecolor="blue",
+                            alpha=0.2,
+                            edgecolor="b",
+                        )
                     )
-                )
             # uniform axis
             ax.set_aspect("equal", adjustable="box")
             fig.tight_layout()
@@ -274,6 +275,8 @@ class TruckLoading:
         self.trucks = trucks
 
         self.available_items = items
+
+        # TODO: decide how to assign items to trucks (add different trucks)
 
         while len(self.available_items) > 0:
             # Select the truck
