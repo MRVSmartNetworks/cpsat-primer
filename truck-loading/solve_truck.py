@@ -9,7 +9,7 @@ DEBUG = True
 
 # Instance - Need to ensure all elements can fit in the bin, else the solution
 # will be infeasible
-container = (40, 15, 40)
+container = (40, 15, 60000)
 
 # Boxes:
 #   [0]: length (x dim)
@@ -71,7 +71,11 @@ class TruckLoading:
         discarded_items = []
 
         # Solve 3D knapsack on weight (TODO: and dimensions[?])
-        weights = [[it["dim"][2] for it in items]]
+        # IDEA: consider the items areas and limit it to vehicle's area
+        weights = [
+            [it["dim"][2] for it in items],
+            [it["dim"][0] * it["dim"][1] for it in items],
+        ]
         values = [1] * len(items)  # This solution maximizes the number of items
 
         # Use OR Tools' knapsack solver
@@ -80,7 +84,7 @@ class TruckLoading:
             "KnapsackExample",
         )
 
-        solver.init(values, weights, [truck[2]])
+        solver.init(values, weights, [truck[2], truck[0] * truck[1]])
         sol_value = solver.solve()
         if DEBUG:
             print(f"Solution: {sol_value}")
