@@ -1,5 +1,5 @@
 from typing import Dict, List, Tuple
-
+import numpy as np
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 from ortools.algorithms.python import knapsack_solver
@@ -9,7 +9,8 @@ DEBUG = True
 
 # Instance - Need to ensure all elements can fit in the bin, else the solution
 # will be infeasible
-container = (40, 15, 60000)
+# container: 0->length, 1->width, 2->max_weight, 3->cost
+containers = [(40, 15, 20, 10)]
 
 # Boxes:
 #   [0]: length (x dim)
@@ -24,24 +25,39 @@ boxes = [
     {"item_id": "I0006", "dim": (7, 3, 3)},
     {"item_id": "I0007", "dim": (11, 2, 3)},
     {"item_id": "I0008", "dim": (13, 2, 2)},
-    {"item_id": "I0009", "dim": (11, 4, 7)},
-    {"item_id": "I0010", "dim": (13, 4, 6)},
-    {"item_id": "I0010", "dim": (3, 5, 1)},
-    {"item_id": "I0012", "dim": (11, 2, 2)},
-    {"item_id": "I0013", "dim": (2, 2, 3)},
-    {"item_id": "I0014", "dim": (11, 3, 4)},
-    {"item_id": "I0015", "dim": (2, 3, 5)},
-    {"item_id": "I0016", "dim": (5, 4, 5)},
-    {"item_id": "I0017", "dim": (6, 4, 4)},
-    {"item_id": "I0018", "dim": (12, 2, 3)},
-    {"item_id": "I0019", "dim": (1, 2, 2)},
-    {"item_id": "I0020", "dim": (3, 5, 3)},
-    {"item_id": "I0021", "dim": (13, 5, 1)},
-    {"item_id": "I0022", "dim": (12, 4, 4)},
-    {"item_id": "I0023", "dim": (1, 4, 1)},
-    {"item_id": "I0024", "dim": (5, 2, 3)},
-    {"item_id": "I0025", "dim": (6, 2, 1)},  # add to make tight
-    {"item_id": "I0026", "dim": (6, 3, 1)},  # add to make infeasible
+    # {"item_id": "I0009", "dim": (11, 4, 7)},
+    # {"item_id": "I0010", "dim": (13, 4, 6)},
+    # {"item_id": "I0010", "dim": (3, 5, 1)},
+    # {"item_id": "I0012", "dim": (11, 2, 2)},
+    # {"item_id": "I0007", "dim": (11, 2, 3)},
+    # {"item_id": "I0008", "dim": (13, 2, 2)},
+    # {"item_id": "I0009", "dim": (11, 4, 7)},
+    # {"item_id": "I0010", "dim": (13, 4, 6)},
+    # {"item_id": "I0010", "dim": (3, 5, 1)},
+    # {"item_id": "I0012", "dim": (11, 2, 2)},
+    # {"item_id": "I0013", "dim": (2, 2, 3)},
+    # {"item_id": "I0014", "dim": (11, 3, 4)},
+    # {"item_id": "I0015", "dim": (2, 3, 5)},
+    # {"item_id": "I0016", "dim": (5, 4, 5)},
+    # {"item_id": "I0013", "dim": (2, 2, 3)},
+    # {"item_id": "I0014", "dim": (11, 3, 4)},
+    # {"item_id": "I0015", "dim": (2, 3, 5)},
+    # {"item_id": "I0016", "dim": (5, 4, 5)},
+    # {"item_id": "I0017", "dim": (6, 4, 4)},
+    # {"item_id": "I0018", "dim": (12, 2, 3)},
+    # {"item_id": "I0019", "dim": (1, 2, 2)},
+    # {"item_id": "I0020", "dim": (3, 5, 3)},
+    # {"item_id": "I0021", "dim": (13, 5, 1)},
+    # {"item_id": "I0022", "dim": (12, 4, 4)},
+    # {"item_id": "I0018", "dim": (12, 2, 3)},
+    # {"item_id": "I0019", "dim": (1, 2, 2)},
+    # {"item_id": "I0020", "dim": (3, 5, 3)},
+    # {"item_id": "I0021", "dim": (13, 5, 1)},
+    # {"item_id": "I0022", "dim": (12, 4, 4)},
+    # {"item_id": "I0023", "dim": (1, 4, 1)},
+    # {"item_id": "I0024", "dim": (5, 2, 3)},
+    # {"item_id": "I0025", "dim": (6, 2, 1)},  # add to make tight
+    # {"item_id": "I0026", "dim": (6, 3, 1)},  # add to make infeasible
 ]
 
 
@@ -169,11 +185,11 @@ class TruckLoading:
             for i, box in enumerate(boxes)
         ]
 
-        for i in range(len(boxes)):
-            model.Add(x_vars[i] == 0).OnlyEnforceIf(c_vars[i].Not())
-            model.Add(x_vars[i] >= 0).OnlyEnforceIf(c_vars[i])
-            model.Add(y_vars[i] == 0).OnlyEnforceIf(c_vars[i].Not())
-            model.Add(y_vars[i] >= 0).OnlyEnforceIf(c_vars[i])
+        # for i in range(len(boxes)):
+        #     model.Add(x_vars[i] == 0).OnlyEnforceIf(c_vars[i].Not())
+        #     model.Add(x_vars[i] >= 0).OnlyEnforceIf(c_vars[i])
+        #     model.Add(y_vars[i] == 0).OnlyEnforceIf(c_vars[i].Not())
+        #     model.Add(y_vars[i] >= 0).OnlyEnforceIf(c_vars[i])
         # Interval variables are actually more like constraint containers, that
         # are then passed to the no overlap constraint.
         # Note that we could also make size and end variables, but we don't need
@@ -201,6 +217,12 @@ class TruckLoading:
 
         # Enforce that no two rectangles overlap
         model.AddNoOverlap2D(x_interval_vars, y_interval_vars)
+
+        # Add weight constraint
+        model.Add(
+            sum(c_vars[i] * boxes[i]["dim"][2] for i in range(len(boxes)))
+            <= container[2]
+        )
 
         # Add objective function - it pushes all items towards (x, y) = (0, 0)
         model.Maximize(sum([c_vars[i] for i in range(len(x_vars))]))
@@ -240,14 +262,17 @@ class TruckLoading:
 
         # Store the solution:
         sol_curr_truck = {"positions": [], "item_id": []}
-
+        available_boxes = []
         for i, box in enumerate(boxes):
             sol_curr_truck["item_id"].append(box["item_id"])
             sol_curr_truck["positions"].append(
                 (solver.Value(x_vars[i]), solver.Value(y_vars[i]))
             )
+            # Remove boxes used in current solution
+            if solver.Value(c_vars[i]) == 0:
+                available_boxes.append(box)
 
-        return sol_curr_truck
+        return sol_curr_truck, available_boxes
 
     def selectTruck(self):
         """
@@ -286,11 +311,131 @@ class TruckLoading:
             # Select the truck
             next_truck = self.selectTruck()
 
-            usable, self.available_items = self.selectItemsSubset(
+            # usable, self.available_items = self.selectItemsSubset(
+            #     next_truck, self.available_items
+            # )
+
+            sol_curr_truck, self.available_items = self.pack(
                 next_truck, self.available_items
             )
 
-            self.pack(next_truck, usable)
+    def single_solve(self, items: List[Dict], trucks: List):
+        self.items = items
+        self.trucks = trucks
+        n_items = len(self.items)
+        n_trucks = len(self.trucks)
+
+        model = cp_model.CpModel()
+
+        # Integer variable t_i is the number of trucks of type i present in the solution
+        t_vars = [model.NewBoolVar(name=f"t_{i}") for i in range(n_items * n_trucks)]
+
+        c_vars = [[0] * (n_items * n_trucks)] * n_items
+        x_vars = [[0] * (n_items * n_trucks)] * n_items
+        y_vars = [[0] * (n_items * n_trucks)] * n_items
+        x_interval_vars = [[0] * (n_items * n_trucks)] * n_items
+        y_interval_vars = [[0] * (n_items * n_trucks)] * n_items
+
+        for i in range(n_items):
+            ind_truck = 0
+            for j in range(n_items * n_trucks):
+                # Create a bool variable c_(i,j) indicating if item i is considered in truck j
+                c_vars[i][j] = model.NewBoolVar(name=f"c_({i},{j})")
+
+                # We have to create the variable for the bottom left corner of the
+                # boxes.
+                # We directly limit their range, such that the boxes are inside the
+                # container
+                x_vars[i][j] = model.NewIntVar(
+                    0, trucks[ind_truck][0] - boxes[i]["dim"][0], name=f"x_({i},{j})"
+                )
+                y_vars[i][j] = model.NewIntVar(
+                    0, trucks[ind_truck][1] - boxes[i]["dim"][1], name=f"y_({i},{j})"
+                )
+
+                # Interval variables are actually more like constraint truckss, that
+                # are then passed to the no overlap constraint.
+                x_interval_vars[i][j] = model.NewOptionalIntervalVar(
+                    start=x_vars[i][j],
+                    size=boxes[i]["dim"][0],
+                    end=x_vars[i][j] + boxes[i]["dim"][0],
+                    is_present=c_vars[i][j],
+                    name=f"x_interval_({i},{j})",
+                )
+                y_interval_vars[i][j] = model.NewOptionalIntervalVar(
+                    start=y_vars[i][j],
+                    size=boxes[i]["dim"][1],
+                    end=y_vars[i][j] + boxes[i]["dim"][1],
+                    is_present=c_vars[i][j],
+                    name=f"y_interval_({i},{j})",
+                )
+
+                # Update the truck type trough the index
+                if (j + 1) % n_items == 0:
+                    ind_truck += 1
+
+            # Box i can stay in at most one truck
+            model.Add(
+                sum(c_vars[i]) == 1
+            )  # FIXME:Se cambiato in <= 1 trova una soluzione con tutte le var a 0
+
+        ind_truck = 0
+        objective = 0
+        for j in range(n_items * n_trucks):
+            # Enforce that no two rectangles overlap
+            x_interval_vars_j = [x[j] for x in x_interval_vars]
+            y_interval_vars_j = [y[j] for y in y_interval_vars]
+            model.AddNoOverlap2D(x_interval_vars_j, y_interval_vars_j)
+
+            # Add weight constraint
+            model.Add(
+                sum(c_vars[i][j] * boxes[i]["dim"][2] for i in range(n_items))
+                <= trucks[ind_truck][2]
+            )
+
+            # Create objective to select trucks based on their cost
+            objective += t_vars[j] * trucks[ind_truck][3]
+
+            if (j + 1) % n_items == 0:
+                ind_truck += 1
+
+        model.Minimize(obj=objective)
+        # Solve!
+        solver = cp_model.CpSolver()
+        solver.parameters.max_time_in_seconds = 300.0
+        solver.parameters.log_search_progress = True
+        solver.log_callback = print
+        # Enumerate all solutions.
+        # solver.parameters.enumerate_all_solutions = True
+        # Solve.
+        status = solver.Solve(model)
+        assert status == cp_model.OPTIMAL
+
+        # Plot the solution
+        for j in range(n_trucks * n_items):
+            if solver.Value(t_vars[j]) > 0:
+                fig, ax = plt.subplots(1)
+                ax.set_xlim(0, trucks[0])
+                ax.set_ylim(0, trucks[1])
+                for i in enumerate(n_items):
+                    if solver.Value(c_vars[i][j]) > 0:
+                        ax.add_patch(
+                            patches.Rectangle(
+                                (
+                                    solver.Value(x_vars[i][j]),
+                                    solver.Value(y_vars[i][j]),
+                                ),
+                                boxes[i]["dim"][0],
+                                boxes[i]["dim"][1],
+                                facecolor="blue",
+                                alpha=0.2,
+                                edgecolor="b",
+                            )
+                        )
+                # uniform axis
+                ax.set_aspect("equal", adjustable="box")
+                fig.tight_layout()
+                plt.show()
 
 
 if __name__ == "__main__":
@@ -299,4 +444,4 @@ if __name__ == "__main__":
     # knapsack problem on the weight and on dimensions -> 3D knapsack
 
     truck_loading = TruckLoading()
-    truck_loading.solve(boxes, [container])
+    truck_loading.single_solve(boxes, containers)
