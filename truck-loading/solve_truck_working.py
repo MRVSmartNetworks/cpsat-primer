@@ -2,7 +2,7 @@ from typing import Dict, List, Tuple
 import numpy as np
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
-# from ortools.algorithms.python import knapsack_solver
+from ortools.algorithms.python import knapsack_solver
 from ortools.sat.python import cp_model
 
 DEBUG = True
@@ -320,6 +320,15 @@ class TruckLoading:
             )
 
     def single_solve(self, items: List[Dict], trucks: List):
+        """
+        Solve the problem for a single truck.
+
+        Args:
+            items: list of dict elements consisting of the items to be placed
+            in the truck.
+            trucks: list of available trucks (tuples, with elements: length,
+            width, max_weight, cost)
+        """
         self.items = items
         self.trucks = trucks
         n_items = len(self.items)
@@ -327,50 +336,85 @@ class TruckLoading:
 
         model = cp_model.CpModel()
 
-        # Integer variable t_i is the number of trucks of type i present in the solution
-        t_vars = [model.NewBoolVar(name=f"t_{i}") for i in range(n_items * n_trucks)]
+        # The maximum number of trucks that can be used for each type is equal
+        # to n_items * n_trucks (1 item per truck, worst case);
+        # Here t_i has (n_items * n_trucks) elements
+
+        # t_i is 1 if the corresponding truck is used;
+        t_vars = [
+            model.NewBoolVar(name=f"t_{i}") for i in range(n_items * n_trucks)
+        ]
         ind_truck = 0
-        # c_vars = [[0] * (n_items * n_trucks)] * n_items
         c_vars = []
         x_vars = []
         y_vars = []
         x_interval_vars = []
         y_interval_vars = []
         for i in range(n_items):
+            # c_ij: 1 if item i is in truck j (j is "super-index")
             c_vars.append(
-                [model.NewBoolVar(name=f"c_({i},{j})") for j in range(n_items * n_trucks)]
+                [
+                    model.NewBoolVar(name=f"c_({i},{j})")
+                    for j in range(n_items * n_trucks)
+                ]
             )
-            x_vars.append([ model.NewIntVar(
-                0, trucks[ind_truck][0] - boxes[i]["dim"][0], name=f"x_({i},{j})"
-            ) for j in range(n_items * n_trucks)])
-            y_vars.append([model.NewIntVar(
-                0, trucks[ind_truck][1] - boxes[i]["dim"][1], name=f"y_({i},{j})"
-            ) for j in range(n_items * n_trucks)])
+            # x_ij: x coordinate of the origin of item i in truck j
+            x_vars.append(
+                [
+                    model.NewIntVar(
+                        0,
+                        trucks[ind_truck][0] - boxes[i]["dim"][0],
+                        name=f"x_({i},{j})",
+                    )
+                    for j in range(n_items * n_trucks)
+                ]
+            )
+            # y_ij: y coordinate of the origin of item i in truck j
+            y_vars.append(
+                [
+                    model.NewIntVar(
+                        0,
+                        trucks[ind_truck][1] - boxes[i]["dim"][1],
+                        name=f"y_({i},{j})",
+                    )
+                    for j in range(n_items * n_trucks)
+                ]
+            )
+            # Interval vars definition (x and y)
+            x_interval_vars.append(
+                [
+                    model.NewOptionalIntervalVar(
+                        start=x_vars[i][j],
+                        size=boxes[i]["dim"][0],
+                        end=x_vars[i][j] + boxes[i]["dim"][0],
+                        is_present=c_vars[i][j],
+                        name=f"x_interval_({i},{j})",
+                    )
+                    for j in range(n_items * n_trucks)
+                ]
+            )
+            y_interval_vars.append(
+                [
+                    model.NewOptionalIntervalVar(
+                        start=y_vars[i][j],
+                        size=boxes[i]["dim"][1],
+                        end=y_vars[i][j] + boxes[i]["dim"][1],
+                        is_present=c_vars[i][j],
+                        name=f"y_interval_({i},{j})",
+                    )
+                    for j in range(n_items * n_trucks)
+                ]
+            )
 
-            x_interval_vars.append([model.NewOptionalIntervalVar(
-                start=x_vars[i][j],
-                size=boxes[i]["dim"][0],
-                end=x_vars[i][j] + boxes[i]["dim"][0],
-                is_present=c_vars[i][j],
-                name=f"x_interval_({i},{j})",
-            ) for j in range(n_items * n_trucks)])
-
-            y_interval_vars.append([model.NewOptionalIntervalVar(
-                start=y_vars[i][j],
-                size=boxes[i]["dim"][1],
-                end=y_vars[i][j] + boxes[i]["dim"][1],
-                is_present=c_vars[i][j],
-                name=f"y_interval_({i},{j})",
-            ) for j in range(n_items * n_trucks)])
-
+        # Constraints: each element should appear exactly 1 time (in 1 truck)
         for i in range(n_items):
-            model.Add(
-                sum(c_vars[i]) == 1
-            )
-        
+            model.Add(sum(c_vars[i]) == 1)
+
+        # Big-O constraint on the number of items in each truck - if the truck
+        # is not considered, no item can be placed inside it
         for j in range(n_items * n_trucks):
             model.Add(
-                sum([c_vars[i][j] for i in range(n_items)]) <= 1000 * t_vars[j]
+                sum([c_vars[i][j] for i in range(n_items)]) <= 10000 * t_vars[j]
             )
 
         ind_truck = 0
@@ -381,13 +425,13 @@ class TruckLoading:
             y_interval_vars_j = [y[j] for y in y_interval_vars]
             model.AddNoOverlap2D(x_interval_vars_j, y_interval_vars_j)
 
-            # # Add weight constraint
-            # model.Add(
-            #     sum(c_vars[i][j] * boxes[i]["dim"][2] for i in range(n_items))
-            #     <= trucks[ind_truck][2]
-            # )
+            # Add weight constraint
+            model.Add(
+                sum(c_vars[i][j] * boxes[i]["dim"][2] for i in range(n_items))
+                <= trucks[ind_truck][2]
+            )
 
-            # Create objective to select trucks based on their cost
+            # Objective function: total trucks cost
             objective += t_vars[j] * trucks[ind_truck][3]
 
             if (j + 1) % n_items == 0:
@@ -428,6 +472,9 @@ class TruckLoading:
                     )
             # uniform axis
             ax.set_aspect("equal", adjustable="box")
+            ax.set_title(
+                f"Truck {j % n_trucks + 1} number {j - (j % n_trucks) + 1}"
+            )
             fig.tight_layout()
             plt.show()
 
