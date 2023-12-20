@@ -13,9 +13,12 @@ DEBUG = True
 containers = [(40, 15, 20, 10)]
 
 # Boxes:
-#   [0]: length (x dim)
-#   [1]: width (y dim)
-#   [2]: weight
+#   "item_id":
+#       Unique id of the item
+#   "dim":
+#       [0]: length (x dim)
+#       [1]: width (y dim)
+#       [2]: weight
 boxes = [
     {"item_id": "I0001", "dim": (11, 3, 4)},
     {"item_id": "I0002", "dim": (13, 3, 2)},
@@ -24,7 +27,7 @@ boxes = [
     {"item_id": "I0005", "dim": (9, 3, 1)},
     {"item_id": "I0006", "dim": (7, 3, 3)},
     {"item_id": "I0007", "dim": (11, 2, 3)},
-    {"item_id": "I0008", "dim": (13, 2, 2)},
+    # {"item_id": "I0008", "dim": (13, 2, 2)},
     # {"item_id": "I0009", "dim": (11, 4, 7)},
     # {"item_id": "I0010", "dim": (13, 4, 6)},
     # {"item_id": "I0010", "dim": (3, 5, 1)},
@@ -84,6 +87,12 @@ class VarArraySolutionPrinterWithLimit(cp_model.CpSolverSolutionCallback):
 
 
 class TruckLoading:
+    """
+    Solve an instance of the truck loading problem.
+    The objective is to pack a given set of items inside a number of trucks,
+    while minimizing the total trucks cost.
+    """
+
     def __init__(self):
         pass
 
@@ -277,7 +286,6 @@ class TruckLoading:
     def selectTruck(self):
         """
         Select the truck to be used for the next solution.
-
         """
         if self.trucks is None:
             raise ValueError("No trucks list has been provided yet!")
@@ -290,7 +298,7 @@ class TruckLoading:
                 "This function only supports a single truck type!"
             )
 
-    def solve(self, items: List[Dict], trucks: List):
+    def solve_old(self, items: List[Dict], trucks: List):
         """
         Solve the truck loading problem for the set of items and trucks
         provided.
@@ -319,71 +327,128 @@ class TruckLoading:
                 next_truck, self.available_items
             )
 
-    def single_solve(self, items: List[Dict], trucks: List):
+    def solve(
+        self, items: List[Dict], trucks: List, max_truck_n: List[int] = []
+    ):
+        """
+        Solve the problem using OR Tools' CP solver.
+
+        Args:
+            items: list of dict elements consisting of the items to be placed
+            in the truck.
+            trucks: list of available trucks (tuples, with elements: length,
+            width, max_weight, cost)
+            max_truck_n: list containing, for each truck type, the maximum units
+            available. This variable is optional (default []), and it is meant
+            to speed up the computation by reducing the variable dimensionality.
+        """
         self.items = items
         self.trucks = trucks
         n_items = len(self.items)
         n_trucks = len(self.trucks)
 
+        if max_truck_n == []:
+            # Default value for the max. allowed number of trucks for each type
+            # is n_items (1 item per truck)
+            self.max_truck_n = [n_items] * n_trucks
+        else:
+            if len(max_truck_n) != n_trucks:
+                raise ValueError(
+                    "The maximum number of trucks per type should be a list with as many elements as trucks"
+                )
+            self.max_truck_n = max_truck_n
+
         model = cp_model.CpModel()
 
-        # Integer variable t_i is the number of trucks of type i present in the solution
-        t_vars = [
-            model.NewBoolVar(name=f"t_{i}") for i in range(n_items * n_trucks)
-        ]
+        # The maximum number of trucks that can be used for each type is given
+        # by the elements of 'self.max_truck_n'
 
-        c_vars = [[0] * (n_items * n_trucks)] * n_items
-        x_vars = [[0] * (n_items * n_trucks)] * n_items
-        y_vars = [[0] * (n_items * n_trucks)] * n_items
-        x_interval_vars = [[0] * (n_items * n_trucks)] * n_items
-        y_interval_vars = [[0] * (n_items * n_trucks)] * n_items
+        # t_jk = 1 if truck k of type j is used (k is self.max_truck_n[j])
+        t_vars = []
+        for j in range(n_trucks):
+            t_vars.append(
+                [
+                    model.NewBoolVar(name=f"t_{j},{k}")
+                    for k in range(self.max_truck_n[j])
+                ]
+            )
 
+        ind_truck = 0
+        c_vars = []
+        x_vars = []
+        y_vars = []
+        x_interval_vars = []
+        y_interval_vars = []
+        # TODO: add 3rd dimension ---------------------------------------------
         for i in range(n_items):
-            ind_truck = 0
-            for j in range(n_items * n_trucks):
-                # Create a bool variable c_(i,j) indicating if item i is considered in truck j
-                c_vars[i][j] = model.NewBoolVar(name=f"c_({i},{j})")
+            # c_ij: 1 if item i is in truck j (j is "super-index")
+            c_vars.append(
+                [
+                    model.NewBoolVar(name=f"c_({i},{j})")
+                    for j in range(n_items * n_trucks)
+                ]
+            )
+            # x_ij: x coordinate of the origin of item i in truck j
+            x_vars.append(
+                [
+                    model.NewIntVar(
+                        0,
+                        trucks[ind_truck][0] - boxes[i]["dim"][0],
+                        name=f"x_({i},{j})",
+                    )
+                    for j in range(n_items * n_trucks)
+                ]
+            )
+            # y_ij: y coordinate of the origin of item i in truck j
+            y_vars.append(
+                [
+                    model.NewIntVar(
+                        0,
+                        trucks[ind_truck][1] - boxes[i]["dim"][1],
+                        name=f"y_({i},{j})",
+                    )
+                    for j in range(n_items * n_trucks)
+                ]
+            )
+            # Interval vars definition (x and y)
+            x_interval_vars.append(
+                [
+                    model.NewOptionalIntervalVar(
+                        start=x_vars[i][j],
+                        size=boxes[i]["dim"][0],
+                        end=x_vars[i][j] + boxes[i]["dim"][0],
+                        is_present=c_vars[i][j],
+                        name=f"x_interval_({i},{j})",
+                    )
+                    for j in range(n_items * n_trucks)
+                ]
+            )
+            y_interval_vars.append(
+                [
+                    model.NewOptionalIntervalVar(
+                        start=y_vars[i][j],
+                        size=boxes[i]["dim"][1],
+                        end=y_vars[i][j] + boxes[i]["dim"][1],
+                        is_present=c_vars[i][j],
+                        name=f"y_interval_({i},{j})",
+                    )
+                    for j in range(n_items * n_trucks)
+                ]
+            )
 
-                # We have to create the variable for the bottom left corner of the
-                # boxes.
-                # We directly limit their range, such that the boxes are inside the
-                # container
-                x_vars[i][j] = model.NewIntVar(
-                    0,
-                    trucks[ind_truck][0] - boxes[i]["dim"][0],
-                    name=f"x_({i},{j})",
-                )
-                y_vars[i][j] = model.NewIntVar(
-                    0,
-                    trucks[ind_truck][1] - boxes[i]["dim"][1],
-                    name=f"y_({i},{j})",
-                )
+        for j in range(n_trucks):
+            pass
 
-                # Interval variables are actually more like constraint truckss, that
-                # are then passed to the no overlap constraint.
-                x_interval_vars[i][j] = model.NewOptionalIntervalVar(
-                    start=x_vars[i][j],
-                    size=boxes[i]["dim"][0],
-                    end=x_vars[i][j] + boxes[i]["dim"][0],
-                    is_present=c_vars[i][j],
-                    name=f"x_interval_({i},{j})",
-                )
-                y_interval_vars[i][j] = model.NewOptionalIntervalVar(
-                    start=y_vars[i][j],
-                    size=boxes[i]["dim"][1],
-                    end=y_vars[i][j] + boxes[i]["dim"][1],
-                    is_present=c_vars[i][j],
-                    name=f"y_interval_({i},{j})",
-                )
+        # Constraints: each element should appear exactly 1 time (in 1 truck)
+        for i in range(n_items):
+            model.Add(sum(c_vars[i]) == 1)
 
-                # Update the truck type trough the index
-                if (j + 1) % n_items == 0:
-                    ind_truck += 1
-
-            # Box i can stay in at most one truck
+        # Big-O constraint on the number of items in each truck - if the truck
+        # is not considered, no item can be placed inside it
+        for j in range(n_items * n_trucks):
             model.Add(
-                sum(c_vars[i]) == 1
-            )  # FIXME:Se cambiato in <= 1 trova una soluzione con tutte le var a 0
+                sum([c_vars[i][j] for i in range(n_items)]) <= 10000 * t_vars[j]
+            )
 
         ind_truck = 0
         objective = 0
@@ -399,7 +464,7 @@ class TruckLoading:
                 <= trucks[ind_truck][2]
             )
 
-            # Create objective to select trucks based on their cost
+            # Objective function: total trucks cost
             objective += t_vars[j] * trucks[ind_truck][3]
 
             if (j + 1) % n_items == 0:
@@ -415,33 +480,36 @@ class TruckLoading:
         # solver.parameters.enumerate_all_solutions = True
         # Solve.
         status = solver.Solve(model)
+        print(status, cp_model.OPTIMAL)
         assert status == cp_model.OPTIMAL
 
-        # Plot the solution
+        # # Plot the solution
         for j in range(n_trucks * n_items):
-            if solver.Value(t_vars[j]) > 0:
-                fig, ax = plt.subplots(1)
-                ax.set_xlim(0, trucks[0])
-                ax.set_ylim(0, trucks[1])
-                for i in enumerate(n_items):
-                    if solver.Value(c_vars[i][j]) > 0:
-                        ax.add_patch(
-                            patches.Rectangle(
-                                (
-                                    solver.Value(x_vars[i][j]),
-                                    solver.Value(y_vars[i][j]),
-                                ),
-                                boxes[i]["dim"][0],
-                                boxes[i]["dim"][1],
-                                facecolor="blue",
-                                alpha=0.2,
-                                edgecolor="b",
-                            )
+            fig, ax = plt.subplots(1)
+            ax.set_xlim(0, trucks[0][0])
+            ax.set_ylim(0, trucks[0][1])
+            for i in range(n_items):
+                if solver.Value(c_vars[i][j]) > 0:
+                    ax.add_patch(
+                        patches.Rectangle(
+                            (
+                                solver.Value(x_vars[i][j]),
+                                solver.Value(y_vars[i][j]),
+                            ),
+                            boxes[i]["dim"][0],
+                            boxes[i]["dim"][1],
+                            facecolor="blue",
+                            alpha=0.2,
+                            edgecolor="b",
                         )
-                # uniform axis
-                ax.set_aspect("equal", adjustable="box")
-                fig.tight_layout()
-                plt.show()
+                    )
+            # uniform axis
+            ax.set_aspect("equal", adjustable="box")
+            ax.set_title(
+                f"Truck {j % n_trucks + 1} number {j - (j % n_trucks) + 1}"
+            )
+            fig.tight_layout()
+            plt.show()
 
 
 if __name__ == "__main__":
@@ -450,4 +518,4 @@ if __name__ == "__main__":
     # knapsack problem on the weight and on dimensions -> 3D knapsack
 
     truck_loading = TruckLoading()
-    truck_loading.single_solve(boxes, containers)
+    truck_loading.solve(boxes, containers)
