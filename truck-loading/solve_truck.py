@@ -328,7 +328,9 @@ class TruckLoading:
         model = cp_model.CpModel()
 
         # Integer variable t_i is the number of trucks of type i present in the solution
-        t_vars = [model.NewBoolVar(name=f"t_{i}") for i in range(n_items * n_trucks)]
+        t_vars = [
+            model.NewBoolVar(name=f"t_{i}") for i in range(n_items * n_trucks)
+        ]
 
         c_vars = [[0] * (n_items * n_trucks)] * n_items
         x_vars = [[0] * (n_items * n_trucks)] * n_items
@@ -347,10 +349,14 @@ class TruckLoading:
                 # We directly limit their range, such that the boxes are inside the
                 # container
                 x_vars[i][j] = model.NewIntVar(
-                    0, trucks[ind_truck][0] - boxes[i]["dim"][0], name=f"x_({i},{j})"
+                    0,
+                    trucks[ind_truck][0] - boxes[i]["dim"][0],
+                    name=f"x_({i},{j})",
                 )
                 y_vars[i][j] = model.NewIntVar(
-                    0, trucks[ind_truck][1] - boxes[i]["dim"][1], name=f"y_({i},{j})"
+                    0,
+                    trucks[ind_truck][1] - boxes[i]["dim"][1],
+                    name=f"y_({i},{j})",
                 )
 
                 # Interval variables are actually more like constraint truckss, that
