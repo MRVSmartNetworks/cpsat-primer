@@ -1,7 +1,8 @@
 from typing import Dict, List, Tuple
-import numpy as np
+
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
+import numpy as np
 from ortools.algorithms.python import knapsack_solver
 from ortools.sat.python import cp_model
 
