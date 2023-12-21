@@ -470,7 +470,7 @@ class TruckLoading:
                 self.model.Add(
                     sum([c_vars[i][j][k] for i in range(n_items)])
                     <= t_vars[j][k]
-                ).OnlyEnforceIf(t_vars[j][k])
+                ).OnlyEnforceIf(t_vars[j][k].Not())
 
                 x_interval_vars_jk = [x[j][k] for x in x_interval_vars]
                 y_interval_vars_jk = [y[j][k] for y in y_interval_vars]
