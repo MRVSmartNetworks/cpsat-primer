@@ -1,3 +1,4 @@
+import warnings
 from typing import Dict, List, Tuple
 
 import matplotlib.patches as patches
@@ -7,6 +8,7 @@ from ortools.algorithms.python import knapsack_solver
 from ortools.sat.python import cp_model
 
 DEBUG = True
+VERB = False
 
 # Instance - Need to ensure all elements can fit in the bin, else the solution
 # will be infeasible
@@ -28,40 +30,40 @@ boxes = [
     {"item_id": "I0005", "dim": (9, 3, 1)},
     {"item_id": "I0006", "dim": (7, 3, 3)},
     {"item_id": "I0007", "dim": (11, 2, 3)},
-    # {"item_id": "I0008", "dim": (13, 2, 2)},
-    # {"item_id": "I0009", "dim": (11, 4, 7)},
-    # {"item_id": "I0010", "dim": (13, 4, 6)},
-    # {"item_id": "I0010", "dim": (3, 5, 1)},
-    # {"item_id": "I0012", "dim": (11, 2, 2)},
-    # {"item_id": "I0007", "dim": (11, 2, 3)},
-    # {"item_id": "I0008", "dim": (13, 2, 2)},
-    # {"item_id": "I0009", "dim": (11, 4, 7)},
-    # {"item_id": "I0010", "dim": (13, 4, 6)},
-    # {"item_id": "I0010", "dim": (3, 5, 1)},
-    # {"item_id": "I0012", "dim": (11, 2, 2)},
-    # {"item_id": "I0013", "dim": (2, 2, 3)},
-    # {"item_id": "I0014", "dim": (11, 3, 4)},
-    # {"item_id": "I0015", "dim": (2, 3, 5)},
-    # {"item_id": "I0016", "dim": (5, 4, 5)},
-    # {"item_id": "I0013", "dim": (2, 2, 3)},
-    # {"item_id": "I0014", "dim": (11, 3, 4)},
-    # {"item_id": "I0015", "dim": (2, 3, 5)},
-    # {"item_id": "I0016", "dim": (5, 4, 5)},
-    # {"item_id": "I0017", "dim": (6, 4, 4)},
-    # {"item_id": "I0018", "dim": (12, 2, 3)},
-    # {"item_id": "I0019", "dim": (1, 2, 2)},
-    # {"item_id": "I0020", "dim": (3, 5, 3)},
-    # {"item_id": "I0021", "dim": (13, 5, 1)},
-    # {"item_id": "I0022", "dim": (12, 4, 4)},
-    # {"item_id": "I0018", "dim": (12, 2, 3)},
-    # {"item_id": "I0019", "dim": (1, 2, 2)},
-    # {"item_id": "I0020", "dim": (3, 5, 3)},
-    # {"item_id": "I0021", "dim": (13, 5, 1)},
-    # {"item_id": "I0022", "dim": (12, 4, 4)},
-    # {"item_id": "I0023", "dim": (1, 4, 1)},
-    # {"item_id": "I0024", "dim": (5, 2, 3)},
-    # {"item_id": "I0025", "dim": (6, 2, 1)},  # add to make tight
-    # {"item_id": "I0026", "dim": (6, 3, 1)},  # add to make infeasible
+    {"item_id": "I0008", "dim": (13, 2, 2)},
+    {"item_id": "I0009", "dim": (11, 4, 7)},
+    {"item_id": "I0010", "dim": (13, 4, 6)},
+    {"item_id": "I0010", "dim": (3, 5, 1)},
+    {"item_id": "I0012", "dim": (11, 2, 2)},
+    {"item_id": "I0007", "dim": (11, 2, 3)},
+    {"item_id": "I0008", "dim": (13, 2, 2)},
+    {"item_id": "I0009", "dim": (11, 4, 7)},
+    {"item_id": "I0010", "dim": (13, 4, 6)},
+    {"item_id": "I0010", "dim": (3, 5, 1)},
+    {"item_id": "I0012", "dim": (11, 2, 2)},
+    {"item_id": "I0013", "dim": (2, 2, 3)},
+    {"item_id": "I0014", "dim": (11, 3, 4)},
+    {"item_id": "I0015", "dim": (2, 3, 5)},
+    {"item_id": "I0016", "dim": (5, 4, 5)},
+    {"item_id": "I0013", "dim": (2, 2, 3)},
+    {"item_id": "I0014", "dim": (11, 3, 4)},
+    {"item_id": "I0015", "dim": (2, 3, 5)},
+    {"item_id": "I0016", "dim": (5, 4, 5)},
+    {"item_id": "I0017", "dim": (6, 4, 4)},
+    {"item_id": "I0018", "dim": (12, 2, 3)},
+    {"item_id": "I0019", "dim": (1, 2, 2)},
+    {"item_id": "I0020", "dim": (3, 5, 3)},
+    {"item_id": "I0021", "dim": (13, 5, 1)},
+    {"item_id": "I0022", "dim": (12, 4, 4)},
+    {"item_id": "I0018", "dim": (12, 2, 3)},
+    {"item_id": "I0019", "dim": (1, 2, 2)},
+    {"item_id": "I0020", "dim": (3, 5, 3)},
+    {"item_id": "I0021", "dim": (13, 5, 1)},
+    {"item_id": "I0022", "dim": (12, 4, 4)},
+    {"item_id": "I0023", "dim": (1, 4, 1)},
+    {"item_id": "I0024", "dim": (5, 2, 3)},
+    {"item_id": "I0025", "dim": (6, 2, 1)},  # add to make tight
+    {"item_id": "I0026", "dim": (6, 3, 1)},  # add to make infeasible
 ]
 
 
@@ -498,52 +500,107 @@ class TruckLoading:
         self.solver.log_callback = print
         # Enumerate all solutions.
         # solver.parameters.enumerate_all_solutions = True
-        # Solve.
+        # Solve
         status = self.solver.Solve(self.model)
-        print(status, cp_model.OPTIMAL)
-        assert status == cp_model.OPTIMAL
+        print("+--------------------------------------------+")
+        if status != cp_model.INFEASIBLE and status != cp_model.MODEL_INVALID:
+            self.sol_found = True
+            if status == cp_model.OPTIMAL:
+                print("-> Optimal solution was found!")
+            elif status == cp_model.FEASIBLE:
+                print("-> Feasible solution found!")
+            else:
+                warnings.warn("Unknown solution status!")
+        else:
+            raise RuntimeError("No solution was found!")
+
+        self.obj_val = self.solver.ObjectiveValue()
+        print(f"> Objective Value (truck cost): {self.obj_val}")
+        print("")
 
         # Display the solution (each truck k of type j)
-        for j in range(n_trucks):
-            for k in range(self.max_truck_n[j]):
-                # Print
-                print(f"Truck {k + 1}, type {j + 1}:")
-                print(
-                    f"> Number of items: {sum([self.solver.Value(c_vars[i][j][k]) for i in range(n_items)])}"
-                )
-                curr_tot_weight = sum(
-                    [
-                        boxes[i]["dim"][2]
-                        for i in range(n_items)
-                        if self.solver.Value(c_vars[i][j][k]) > 0
-                    ]
-                )
-                print(f"> Total weight: {curr_tot_weight}")
+        if VERB:
+            for j in range(n_trucks):
+                for k in range(self.max_truck_n[j]):
+                    # Print
+                    print(f"Truck {k + 1}, type {j + 1}:")
+                    print(
+                        f"> Number of items: {sum([self.solver.Value(c_vars[i][j][k]) for i in range(n_items)])}"
+                    )
+                    curr_tot_weight = sum(
+                        [
+                            boxes[i]["dim"][2]
+                            for i in range(n_items)
+                            if self.solver.Value(c_vars[i][j][k]) > 0
+                        ]
+                    )
+                    print(f"> Total weight: {curr_tot_weight}")
+            print("")
 
-                # Figure
-                fig, ax = plt.subplots(1)
-                ax.set_xlim(0, trucks[j][0])
-                ax.set_ylim(0, trucks[j][1])
-                for i in range(n_items):
-                    if self.solver.Value(c_vars[i][j][k]) > 0:
-                        ax.add_patch(
-                            patches.Rectangle(
-                                (
-                                    self.solver.Value(x_vars[i][j][k]),
-                                    self.solver.Value(y_vars[i][j][k]),
-                                ),
-                                boxes[i]["dim"][0],
-                                boxes[i]["dim"][1],
-                                facecolor="blue",
-                                alpha=0.2,
-                                edgecolor="b",
-                            )
-                        )
-                # uniform axis
-                ax.set_aspect("equal", adjustable="box")
-                ax.set_title(f"Truck {j + 1} number {k + 1}")
-                fig.tight_layout()
-                plt.show()
+        self.used_trucks_sol = self.printSolution(
+            boxes, trucks, c_vars, x_vars, y_vars
+        )
+        print(f"> {self.used_trucks_sol} trucks have been used")
+        print("+--------------------------------------------+")
+
+    def printSolution(self, boxes, trucks, c_vars, x_vars, y_vars) -> int:
+        """
+        Print the solution - only displaying the trucks that contain at least
+        one item.
+        The function returns the number of used trucks.
+
+        Args:
+            boxes: list of items (dict)
+            trucks: list of truck types (dict)
+            c_vars: variable 'c' from the model
+            x_vars: variable 'x' from the model
+            y_vars: variable 'y' from the model
+
+        Returns:
+            Integer number of trucks used (i.e., containing >0 elements); if no
+            solution has been found yet, the returned value is -1.
+        """
+        if self.sol_found:
+            n_used_trucks = 0
+            for j in range(len(trucks)):
+                for k in range(self.max_truck_n[j]):
+                    # Check curr. truck contains at least 1 element
+                    if sum(
+                        [
+                            self.solver.Value(c_vars[i][j][k])
+                            for i in range(len(boxes))
+                        ]
+                    ):
+                        n_used_trucks += 1
+                        fig, ax = plt.subplots(1)
+                        ax.set_xlim(0, trucks[j][0])
+                        ax.set_ylim(0, trucks[j][1])
+                        for i in range(len(boxes)):
+                            if self.solver.Value(c_vars[i][j][k]) > 0:
+                                ax.add_patch(
+                                    patches.Rectangle(
+                                        (
+                                            self.solver.Value(x_vars[i][j][k]),
+                                            self.solver.Value(y_vars[i][j][k]),
+                                        ),
+                                        boxes[i]["dim"][0],
+                                        boxes[i]["dim"][1],
+                                        facecolor="blue",
+                                        alpha=0.2,
+                                        edgecolor="b",
+                                    )
+                                )
+                        # uniform axis
+                        ax.set_aspect("equal", adjustable="box")
+                        ax.set_title(f"Truck {j + 1} number {k + 1}")
+                        fig.tight_layout()
+                        plt.show()
+            return n_used_trucks
+        else:
+            warnings.warn(
+                "No solution was found yet! Please run the model first"
+            )
+            return -1
 
 
 if __name__ == "__main__":
