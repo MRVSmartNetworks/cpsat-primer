@@ -97,6 +97,7 @@ class TruckLoading:
     def __init__(self):
         pass
 
+    # OLD ---------------------------------------------------------------------+
     def selectItemsSubset(
         self, truck: Tuple[int, int, int], items: List[Dict]
     ) -> Tuple[List, List]:
@@ -149,8 +150,7 @@ class TruckLoading:
 
         assert len(items) == len(selected_items) + len(
             discarded_items
-        ), f"[selectItemsSubset]: items don't add up \
-({len(items)} vs. {len(selected_items) + len(discarded_items)})"
+        ), f"[selectItemsSubset]: items don't add up ({len(items)} vs. {len(selected_items) + len(discarded_items)})"
 
         return selected_items, discarded_items
 
@@ -328,6 +328,9 @@ class TruckLoading:
                 next_truck, self.available_items
             )
 
+    # -------------------------------------------------------------------------+
+    # NEW ---------------------------------------------------------------------+
+
     def solve(
         self, items: List[Dict], trucks: List, max_truck_n: List[int] = []
     ):
@@ -500,9 +503,24 @@ class TruckLoading:
         print(status, cp_model.OPTIMAL)
         assert status == cp_model.OPTIMAL
 
-        # # Plot the solution
+        # Display the solution (each truck k of type j)
         for j in range(n_trucks):
             for k in range(self.max_truck_n[j]):
+                # Print
+                print(f"Truck {k + 1}, type {j + 1}:")
+                print(
+                    f"> Number of items: {sum([self.solver.Value(c_vars[i][j][k]) for i in range(n_items)])}"
+                )
+                curr_tot_weight = sum(
+                    [
+                        boxes[i]["dim"][2]
+                        for i in range(n_items)
+                        if self.solver.Value(c_vars[i][j][k]) > 0
+                    ]
+                )
+                print(f"> Total weight: {curr_tot_weight}")
+
+                # Figure
                 fig, ax = plt.subplots(1)
                 ax.set_xlim(0, trucks[j][0])
                 ax.set_ylim(0, trucks[j][1])
