@@ -453,6 +453,20 @@ class TruckLoading:
 
         # # Plot the solution
         for j in range(n_trucks * n_items):
+            # Print
+            print(f"Truck {j % n_trucks + 1}, type {j - (j % n_trucks) + 1}:")
+            print(
+                f"> Number of items: {sum([solver.Value(c_vars[i][j]) for i in range(n_items)])}"
+            )
+            curr_tot_weight = sum(
+                [
+                    boxes[i]["dim"][2]
+                    for i in range(n_items)
+                    if solver.Value(c_vars[i][j]) > 0
+                ]
+            )
+            print(f"> Total weight: {curr_tot_weight}")
+            # Plots
             fig, ax = plt.subplots(1)
             ax.set_xlim(0, trucks[0][0])
             ax.set_ylim(0, trucks[0][1])
