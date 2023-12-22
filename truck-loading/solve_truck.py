@@ -9,6 +9,7 @@ from ortools.sat.python import cp_model
 
 DEBUG = True
 VERB = False
+TIME_LIMIT = 1000  # seconds
 
 # Instance - Need to ensure all elements can fit in the bin, else the solution
 # will be infeasible
@@ -495,7 +496,7 @@ class TruckLoading:
         self.model.Minimize(obj=objective)
         # Solve!
         self.solver = cp_model.CpSolver()
-        self.solver.parameters.max_time_in_seconds = 300.0
+        self.solver.parameters.max_time_in_seconds = TIME_LIMIT
         self.solver.parameters.log_search_progress = True
         self.solver.log_callback = print
         # Enumerate all solutions.
